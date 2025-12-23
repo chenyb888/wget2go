@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	httpCore "github.com/example/wget2go/internal/core/http"
@@ -161,12 +162,14 @@ func (cd *ChunkDownloader) downloadWithChunks(ctx context.Context, url, outputPa
 	chunkSize := fileInfo.ContentLength / int64(numChunks)
 	lastChunkSize := fileInfo.ContentLength - chunkSize*(int64(numChunks)-1)
 
-	// 打印分片计划
-	fmt.Printf("分片下载计划:\n")
-	fmt.Printf("  文件总大小: %d 字节\n", fileInfo.ContentLength)
-	fmt.Printf("  分片数量: %d\n", numChunks)
-	fmt.Printf("  分片大小: %d 字节\n", chunkSize)
-	fmt.Printf("  最后一个分片大小: %d 字节\n", lastChunkSize)
+	// 打印分片计划（仅在详细模式下显示）
+	if cd.config != nil && cd.config.Verbose {
+		fmt.Printf("分片下载计划:\n")
+		fmt.Printf("  文件总大小: %d 字节\n", fileInfo.ContentLength)
+		fmt.Printf("  分片数量: %d\n", numChunks)
+		fmt.Printf("  分片大小: %d 字节\n", chunkSize)
+		fmt.Printf("  最后一个分片大小: %d 字节\n", lastChunkSize)
+	}
 
 	// 创建分片任务
 	chunks := make([]*types.Chunk, numChunks)
@@ -185,7 +188,9 @@ func (cd *ChunkDownloader) downloadWithChunks(ctx context.Context, url, outputPa
 			Completed: 0,
 			Status:   types.TaskPending,
 		}
-		fmt.Printf("  分片 %d: 字节范围 %d-%d (大小: %d)\n", i, start, end, end-start+1)
+		if cd.config != nil && cd.config.Verbose {
+			fmt.Printf("  分片 %d: 字节范围 %d-%d (大小: %d)\n", i, start, end, end-start+1)
+		}
 	}
 
 	// 临时文件路径
@@ -274,7 +279,9 @@ func (cd *ChunkDownloader) downloadWithChunks(ctx context.Context, url, outputPa
 		return fmt.Errorf("重命名文件失败: %w", err)
 	}
 	
-	fmt.Printf("文件验证通过: %d 字节\n", actualSize)
+	if cd.config != nil && cd.config.Verbose {
+		fmt.Printf("文件验证通过: %d 字节\n", actualSize)
+	}
 	return nil
 }
 
@@ -288,7 +295,7 @@ func (cd *ChunkDownloader) downloadChunks(ctx context.Context, url string, file 
 	startTime := time.Now()
 
 	// 启动进度报告
-	go cd.reportProgress(ctx, len(chunks), chunks, &totalDownloaded, startTime)
+	go cd.reportProgress(ctx, len(chunks), chunks, &mu, startTime)
 
 	// 下载每个分片
 	for _, chunk := range chunks {
@@ -301,11 +308,13 @@ func (cd *ChunkDownloader) downloadChunks(ctx context.Context, url string, file 
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 			
-			// 记录分片开始下载
-			mu.Lock()
-			fmt.Printf("分片 %d 开始下载: 字节范围 %d-%d (大小: %d)\n", 
-				chunk.Index, chunk.Start, chunk.End, chunk.Size)
-			mu.Unlock()
+			// 记录分片开始下载（仅在详细模式下显示）
+			if cd.config != nil && cd.config.Verbose {
+				mu.Lock()
+				fmt.Printf("分片 %d 开始下载: 字节范围 %d-%d (大小: %d)\n", 
+					chunk.Index, chunk.Start, chunk.End, chunk.Size)
+				mu.Unlock()
+			}
 			
 			// 下载分片
 			if err := cd.downloadChunk(ctx, url, file, chunk); err != nil {
@@ -313,9 +322,11 @@ func (cd *ChunkDownloader) downloadChunks(ctx context.Context, url string, file 
 				chunk.Status = types.TaskFailed
 				chunk.Error = err
 				
-				mu.Lock()
-				fmt.Printf("分片 %d 下载失败: %v\n", chunk.Index, err)
-				mu.Unlock()
+				if cd.config != nil && cd.config.Verbose {
+					mu.Lock()
+					fmt.Printf("分片 %d 下载失败: %v\n", chunk.Index, err)
+					mu.Unlock()
+				}
 				return
 			}
 			
@@ -324,8 +335,10 @@ func (cd *ChunkDownloader) downloadChunks(ctx context.Context, url string, file 
 			// 使用实际完成的字节数（chunk.Completed）而不是预期大小（chunk.Size）
 			totalDownloaded += chunk.Completed
 			chunk.Status = types.TaskCompleted
-			fmt.Printf("分片 %d 下载完成: 已下载 %d 字节 (总计: %d/%d)\n", 
-				chunk.Index, chunk.Completed, totalDownloaded, calculateTotalSize(chunks))
+			if cd.config != nil && cd.config.Verbose {
+				fmt.Printf("分片 %d 下载完成: 已下载 %d 字节 (总计: %d/%d)\n", 
+					chunk.Index, chunk.Completed, totalDownloaded, calculateTotalSize(chunks))
+			}
 			// 保存状态
 			if err := saveDownloadState(outputPath, chunks); err != nil {
 				// 状态保存失败不影响下载，只记录警告
@@ -421,7 +434,7 @@ func (w *writeAtWriter) Write(p []byte) (int, error) {
 	if n > 0 {
 		w.offset += int64(n)
 		w.written += int64(n)
-		w.chunk.Completed += int64(n)
+		atomic.AddInt64(&w.chunk.Completed, int64(n))
 	}
 	return n, err
 }
@@ -435,7 +448,7 @@ type chunkTrackingWriter struct {
 func (w *chunkTrackingWriter) Write(p []byte) (int, error) {
 	n, err := w.writer.Write(p)
 	if n > 0 {
-		w.chunk.Completed += int64(n)
+		atomic.AddInt64(&w.chunk.Completed, int64(n))
 	}
 	return n, err
 }
@@ -556,8 +569,8 @@ func (cd *ChunkDownloader) downloadSingle(ctx context.Context, url, outputPath s
 }
 
 // reportProgress 报告下载进度
-func (cd *ChunkDownloader) reportProgress(ctx context.Context, totalChunks int, chunks []*types.Chunk, totalDownloaded *int64, startTime time.Time) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+func (cd *ChunkDownloader) reportProgress(ctx context.Context, totalChunks int, chunks []*types.Chunk, mu *sync.Mutex, startTime time.Time) {
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -567,30 +580,35 @@ func (cd *ChunkDownloader) reportProgress(ctx context.Context, totalChunks int, 
 		case <-cd.stopCh:
 			return
 		case <-ticker.C:
-			// 计算进度
-			downloaded := *totalDownloaded
-			elapsed := time.Since(startTime)
+			// 使用互斥锁保护对chunks的并发访问
+			mu.Lock()
 			
+			// 实时计算所有分片的已下载字节总和
+			var downloaded int64
+			var completedChunks int
+			for _, chunk := range chunks {
+				downloaded += chunk.Completed
+				if chunk.Status == types.TaskCompleted {
+					completedChunks++
+				}
+			}
+			
+			mu.Unlock()
+			
+			elapsed := time.Since(startTime)
 			var speed int64
 			if elapsed.Seconds() > 0 {
 				speed = int64(float64(downloaded) / elapsed.Seconds())
 			}
 
-			// 计算完成的分片数
-			completedChunks := 0
-			for _, chunk := range chunks {
-				if chunk.Status == types.TaskCompleted {
-					completedChunks++
-				}
-			}
-
 			// 发送进度信息
+			totalSize := calculateTotalSize(chunks)
 			cd.progressCh <- types.ProgressInfo{
-				TotalSize:     calculateTotalSize(chunks),
+				TotalSize:     totalSize,
 				Downloaded:    downloaded,
 				Speed:         speed,
-				Percentage:    float64(downloaded) / float64(calculateTotalSize(chunks)) * 100,
-				RemainingTime: utils.CalculateETA(calculateTotalSize(chunks), downloaded, speed),
+				Percentage:    float64(downloaded) / float64(totalSize) * 100,
+				RemainingTime: utils.CalculateETA(totalSize, downloaded, speed),
 				ActiveThreads: cd.config.MaxThreads,
 			}
 		}
