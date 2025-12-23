@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/example/wget2go/internal/core/types"
+	"github.com/example/wget2go/internal/core/utils"
 	"github.com/spf13/viper"
 )
 
@@ -49,7 +50,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("max_threads", 5)
 	v.SetDefault("limit_rate", "0")
 	v.SetDefault("timeout", "30s")
-	v.SetDefault("user_agent", "wget2go/1.0")
+	v.SetDefault("user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36")
 	v.SetDefault("referer", "")
 	v.SetDefault("recursive", false)
 	v.SetDefault("recursive_level", 5)
@@ -152,35 +153,7 @@ func (cm *ConfigManager) Parse() (*types.Config, error) {
 
 // parseSize 解析大小字符串
 func parseSize(sizeStr string) (int64, error) {
-	if sizeStr == "" || sizeStr == "0" {
-		return 0, nil
-	}
-
-	// 简化实现，实际应该使用更完整的解析
-	// 这里假设格式如 "1M", "10K", "2G"
-	var multiplier int64 = 1
-	sizeStr = sizeStr[:len(sizeStr)-1]
-	
-	switch sizeStr[len(sizeStr)-1] {
-	case 'K', 'k':
-		multiplier = 1024
-	case 'M', 'm':
-		multiplier = 1024 * 1024
-	case 'G', 'g':
-		multiplier = 1024 * 1024 * 1024
-	case 'T', 't':
-		multiplier = 1024 * 1024 * 1024 * 1024
-	default:
-		sizeStr = sizeStr + string(sizeStr[len(sizeStr)-1])
-	}
-
-	var value int64
-	_, err := fmt.Sscanf(sizeStr[:len(sizeStr)-1], "%d", &value)
-	if err != nil {
-		return 0, err
-	}
-
-	return value * multiplier, nil
+	return utils.ParseSize(sizeStr)
 }
 
 // parseHeaders 解析HTTP头部

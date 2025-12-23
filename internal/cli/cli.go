@@ -1,13 +1,21 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/example/wget2go/internal/config"
+	"github.com/example/wget2go/internal/core/http"
 	"github.com/example/wget2go/internal/core/types"
+	"github.com/example/wget2go/internal/core/utils"
+	"github.com/example/wget2go/internal/downloader/chunk"
 	"github.com/spf13/cobra"
 )
+
+var _ = time.Second // 确保time包被使用
 
 // CLI 命令行界面
 type CLI struct {
@@ -15,6 +23,7 @@ type CLI struct {
 	configMgr  *config.ConfigManager
 	config     *types.Config
 	urls       []string
+	httpClient *http.Client
 }
 
 // NewCLI 创建命令行界面
@@ -135,6 +144,10 @@ func (cli *CLI) parseConfig(cmd *cobra.Command) error {
 	}
 
 	cli.config = config
+	
+	// 创建HTTP客户端
+	cli.httpClient = http.NewClient(cli.config)
+	
 	return nil
 }
 
@@ -143,20 +156,38 @@ func (cli *CLI) bindFlags(cmd *cobra.Command) error {
 	// 获取所有标志
 	flags := cmd.Flags()
 
-	// 绑定每个标志到viper
-	flagNames := []string{
-		"version", "output", "output-document", "continue", "quiet", "verbose",
-		"chunk-size", "max-threads", "limit-rate", "timeout",
-		"user-agent", "referer", "header", "cookie", "max-redirects",
-		"follow-redirects", "insecure",
-		"recursive", "level", "convert-links", "page-requisites",
-		"progress", "metalink", "robots-txt",
+	// 标志名到viper键名的映射
+	flagMappings := map[string]string{
+		"version":          "version",
+		"output":           "output_file",       // 映射到output_file
+		"output-document":  "output_document",   // 映射到output_document
+		"continue":         "continue",
+		"quiet":            "quiet",
+		"verbose":          "verbose",
+		"chunk-size":       "chunk_size",
+		"max-threads":      "max_threads",
+		"limit-rate":       "limit_rate",
+		"timeout":          "timeout",
+		"user-agent":       "user_agent",
+		"referer":          "referer",
+		"header":           "header",
+		"cookie":           "cookie",
+		"max-redirects":    "max_redirects",
+		"follow-redirects": "follow_redirects",
+		"insecure":         "insecure",
+		"recursive":        "recursive",
+		"level":            "recursive_level",
+		"convert-links":    "convert_links",
+		"page-requisites":  "page_requisites",
+		"progress":         "progress",
+		"metalink":         "metalink",
+		"robots-txt":       "robots_txt",
 	}
 
-	for _, name := range flagNames {
-		if flag := flags.Lookup(name); flag != nil {
-			if err := cli.configMgr.GetViper().BindPFlag(name, flag); err != nil {
-				return fmt.Errorf("绑定标志 %s 失败: %w", name, err)
+	for flagName, viperKey := range flagMappings {
+		if flag := flags.Lookup(flagName); flag != nil {
+			if err := cli.configMgr.GetViper().BindPFlag(viperKey, flag); err != nil {
+				return fmt.Errorf("绑定标志 %s 到键 %s 失败: %w", flagName, viperKey, err)
 			}
 		}
 	}
@@ -200,36 +231,145 @@ func (cli *CLI) showConfig() {
 // startDownload 开始下载
 func (cli *CLI) startDownload() error {
 	fmt.Printf("开始下载 %d 个文件...\n", len(cli.urls))
-
+	
+	// 创建上下文（支持超时）
+	ctx, cancel := context.WithTimeout(context.Background(), cli.config.Timeout)
+	defer cancel()
+	
+	// 创建下载器
+	downloader, err := cli.createDownloader()
+	if err != nil {
+		return fmt.Errorf("创建下载器失败: %w", err)
+	}
+	defer downloader.Stop()
+	
+	// 下载每个文件
 	for i, url := range cli.urls {
-		fmt.Printf("\n[%d/%d] 下载: %s\n", i+1, len(cli.urls), url)
+		outputPath := cli.determineOutputPath(url, i)
+		fmt.Printf("\n[%d/%d] 下载: %s → %s\n", 
+		           i+1, len(cli.urls), url, outputPath)
 		
-		// 这里应该调用下载器
-		// 简化版本，只显示信息
-		if err := cli.downloadFile(url); err != nil {
-			fmt.Printf("下载失败: %v\n", err)
+		if err := cli.downloadFile(ctx, downloader, url, outputPath); err != nil {
+			if cli.config.Continue {
+				fmt.Printf("⚠️  跳过失败文件: %v\n", err)
+				continue
+			}
 			return err
 		}
 		
-		fmt.Printf("下载完成: %s\n", url)
+		fmt.Printf("✓ 下载完成: %s\n", url)
 	}
-
-	fmt.Println("\n所有下载完成!")
+	
+	fmt.Println("\n✅ 所有下载完成!")
 	return nil
 }
 
-// downloadFile 下载单个文件（简化版）
-func (cli *CLI) downloadFile(url string) error {
-	// 在实际实现中，这里会调用下载器
-	// 简化版本只模拟下载
+// createDownloader 创建下载器实例
+func (cli *CLI) createDownloader() (*chunk.ChunkDownloader, error) {
+	// 使用已创建的 HTTP 客户端
+	if cli.httpClient == nil {
+		return nil, fmt.Errorf("HTTP客户端未初始化")
+	}
 	
-	if cli.config.Progress {
-		// 模拟进度显示
-		for i := 0; i <= 100; i += 10 {
-			fmt.Printf("\r进度: %d%%", i)
-			// 模拟下载延迟
-			// time.Sleep(100 * time.Millisecond)
+	// 创建分片下载器
+	downloader := chunk.NewChunkDownloader(cli.httpClient, cli.config)
+	
+	return downloader, nil
+}
+
+// determineOutputPath 确定输出文件路径
+func (cli *CLI) determineOutputPath(url string, index int) string {
+	// 优先级：-O > -o > 从URL提取
+	if cli.config.OutputDocument != "" {
+		return cli.config.OutputDocument
+	}
+	
+	if cli.config.OutputFile != "" {
+		// 如果只有一个URL，直接使用
+		if len(cli.urls) == 1 {
+			return cli.config.OutputFile
 		}
+		// 多个URL时添加序号
+		ext := filepath.Ext(cli.config.OutputFile)
+		base := cli.config.OutputFile[:len(cli.config.OutputFile)-len(ext)]
+		return fmt.Sprintf("%s_%d%s", base, index+1, ext)
+	}
+	
+	// 从URL提取文件名
+	if cli.httpClient == nil {
+		// 如果HTTP客户端未初始化，创建临时客户端
+		httpClient := http.NewClient(cli.config)
+		return httpClient.GetFileNameFromURL(url)
+	}
+	return cli.httpClient.GetFileNameFromURL(url)
+}
+
+// displayProgress 显示下载进度
+func (cli *CLI) displayProgress(progress types.ProgressInfo) {
+	if !cli.config.Progress || cli.config.Quiet {
+		return
+	}
+	
+	// 使用 utils 包美化显示
+	percentage := fmt.Sprintf("%.1f%%", progress.Percentage)
+	downloaded := utils.FormatSize(progress.Downloaded)
+	total := utils.FormatSize(progress.TotalSize)
+	speed := utils.FormatSpeed(progress.Speed)
+	eta := utils.FormatDuration(progress.RemainingTime)
+	
+	// 进度条显示
+	barWidth := 50
+	filled := int(float64(barWidth) * progress.Percentage / 100)
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+	
+	fmt.Printf("\r%s [%s] %s/%s %s ETA: %s", 
+	           percentage, bar, downloaded, total, speed, eta)
+}
+
+// monitorProgress 监控下载进度
+func (cli *CLI) monitorProgress(ctx context.Context, downloader *chunk.ChunkDownloader) {
+	progressCh := downloader.GetProgressChannel()
+	errorCh := downloader.GetErrorChannel()
+	
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case progress, ok := <-progressCh:
+			if !ok {
+				return
+			}
+			cli.displayProgress(progress)
+		case err, ok := <-errorCh:
+			if !ok {
+				return
+			}
+			fmt.Printf("\n下载错误: %v\n", err)
+		}
+	}
+}
+
+// downloadFile 下载单个文件
+func (cli *CLI) downloadFile(ctx context.Context, downloader *chunk.ChunkDownloader, url, outputPath string) error {
+	// 创建子context用于进度监控
+	progressCtx, cancelProgress := context.WithCancel(ctx)
+	defer cancelProgress()
+	
+	// 启动进度监控协程
+	go cli.monitorProgress(progressCtx, downloader)
+	
+	// 执行下载
+	err := downloader.Download(ctx, url, outputPath)
+	
+	// 下载完成后取消进度监控
+	cancelProgress()
+	
+	if err != nil {
+		return fmt.Errorf("下载失败: %w", err)
+	}
+	
+	// 下载完成后换行
+	if cli.config.Progress && !cli.config.Quiet {
 		fmt.Println()
 	}
 	

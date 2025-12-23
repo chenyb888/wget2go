@@ -29,7 +29,7 @@ func NewClient(config *types.Config) *Client {
 		MaxIdleConns:        100,
 		IdleConnTimeout:     90 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second,
-		DisableCompression:  false,
+		DisableCompression:  true, // 禁用自动解压，避免文件大小计算问题
 	}
 
 	// 启用HTTP/2
@@ -58,7 +58,7 @@ func getUserAgent(config *types.Config) string {
 	if config.UserAgent != "" {
 		return config.UserAgent
 	}
-	return "wget2go/1.0"
+	return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
 }
 
 // Head 发送HEAD请求获取文件信息
@@ -138,10 +138,9 @@ func (c *Client) setHeaders(req *http.Request) {
 		req.Header.Set("Cookie", strings.Join(cookies, "; "))
 	}
 
-	// 支持断点续传
-	if c.config.Continue {
-		req.Header.Set("Accept-Encoding", "identity")
-	}
+	// 对于下载请求，总是要求不压缩，避免文件大小计算问题
+	// 同时支持断点续传（identity编码确保范围请求正常工作）
+	req.Header.Set("Accept-Encoding", "identity")
 }
 
 // parseResponse 解析HTTP响应
