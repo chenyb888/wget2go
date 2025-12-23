@@ -16,14 +16,14 @@ wget2go是一个用Go语言重写的wget2，提供了现代化的多线程下载
 
 ### 从源码编译
 ```bash
-git clone https://github.com/example/wget2go.git
+git clone https://github.com/chenyb888/wget2go.git
 cd wget2go
 go build -o wget2go ./cmd/wget2go
 ```
 
 ### 使用go install
 ```bash
-go install github.com/example/wget2go/cmd/wget2go@latest
+go install github.com/chenyb888/wget2go/cmd/wget2go@latest
 ```
 
 ## 使用示例
