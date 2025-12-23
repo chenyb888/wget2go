@@ -1,0 +1,6 @@
+# 测试配置文件
+chunk_size: "2M"
+max_threads: 8
+timeout: "60s"
+user_agent: "wget2go-test/1.0"
+progress: true

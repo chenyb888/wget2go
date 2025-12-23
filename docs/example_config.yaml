@@ -1,0 +1,42 @@
+# wget2go 配置文件示例
+# 保存为 ~/.config/wget2go/config.yaml
+
+# 基本选项
+output_file: ""
+output_document: ""
+continue: false
+quiet: false
+verbose: false
+
+# 下载选项
+chunk_size: "1M"      # 分片大小: 1M, 10M, 100M
+max_threads: 5        # 最大并发线程数
+limit_rate: "0"       # 限速: 0表示不限速, "100K", "1M", "10M"
+timeout: "30s"        # 超时时间
+
+# HTTP选项
+user_agent: "wget2go/1.0"
+referer: ""
+max_redirects: 10
+follow_redirects: true
+insecure: false
+
+# 递归下载选项
+recursive: false
+recursive_level: 5
+convert_links: false
+page_requisites: false
+
+# 其他选项
+progress: true
+metalink: false
+robots_txt: true
+
+# 自定义HTTP头 (通过命令行设置)
+# header:
+#   - "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+#   - "Accept-Language: en-US,en;q=0.5"
+#   - "Accept-Encoding: gzip, deflate"
+
+# Cookie (通过命令行设置)
+# cookie: "session=abc123; user=john"
