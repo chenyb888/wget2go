@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,19 +18,46 @@ import (
 
 // Client HTTP客户端
 type Client struct {
-	httpClient *http.Client
-	config     *types.Config
-	userAgent  string
+	httpClient   *http.Client
+	config       *types.Config
+	userAgent    string
+	proxyManager *ProxyManager
 }
 
 // NewClient 创建新的HTTP客户端
 func NewClient(config *types.Config) *Client {
+	// 创建代理管理器
+	var proxyManager *ProxyManager
+	var err error
+
+	if config.ProxyEnabled || config.HTTPProxy != "" || config.HTTPSProxy != "" {
+		proxyManager, err = NewProxyManager(config)
+		if err != nil {
+			// 代理配置错误，记录警告但不阻止程序运行
+			if config.Verbose {
+				fmt.Printf("警告: 创建代理管理器失败: %v\n", err)
+			}
+		}
+	}
+
 	// 创建传输层配置
-	transport := &http.Transport{
-		MaxIdleConns:        100,
-		IdleConnTimeout:     90 * time.Second,
-		TLSHandshakeTimeout: 10 * time.Second,
-		DisableCompression:  true, // 禁用自动解压，避免文件大小计算问题
+	var transport *http.Transport
+	if proxyManager != nil {
+		transport = NewProxyTransport(proxyManager, config.Insecure, config.Timeout)
+	} else {
+		transport = &http.Transport{
+			MaxIdleConns:        100,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+			DisableCompression:  true, // 禁用自动解压，避免文件大小计算问题
+		}
+
+		// 如果允许不安全的SSL连接
+		if config.Insecure {
+			transport.TLSClientConfig = &tls.Config{
+				InsecureSkipVerify: true,
+			}
+		}
 	}
 
 	// 启用HTTP/2
@@ -47,9 +75,10 @@ func NewClient(config *types.Config) *Client {
 	}
 
 	return &Client{
-		httpClient: client,
-		config:     config,
-		userAgent:  getUserAgent(config),
+		httpClient:   client,
+		config:       config,
+		userAgent:    getUserAgent(config),
+		proxyManager: proxyManager,
 	}
 }
 
@@ -136,6 +165,14 @@ func (c *Client) setHeaders(req *http.Request) {
 			cookies = append(cookies, fmt.Sprintf("%s=%s", name, value))
 		}
 		req.Header.Set("Cookie", strings.Join(cookies, "; "))
+	}
+
+	// 添加代理认证头（如果配置了代理认证）
+	if c.proxyManager != nil && (c.config.ProxyUsername != "" || c.config.ProxyPassword != "") {
+		proxyAuth := c.proxyManager.GetProxyAuthHeader()
+		if proxyAuth != "" {
+			req.Header.Set("Proxy-Authorization", proxyAuth)
+		}
 	}
 
 	// 对于下载请求，总是要求不压缩，避免文件大小计算问题

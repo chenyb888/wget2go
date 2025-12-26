@@ -57,7 +57,9 @@ func (cd *ChunkDownloader) Download(ctx context.Context, url, outputPath string)
 	// 检查是否需要分片下载
 	if cd.shouldUseChunks(fileInfo) {
 		// 测试服务器是否真正支持范围请求
-		fmt.Println("测试服务器分片下载支持...")
+		if cd.config != nil && cd.config.Verbose {
+			fmt.Println("测试服务器分片下载支持...")
+		}
 		// 尝试下载0-0字节来测试Range支持
 		reader, _, rangeErr := cd.client.DownloadRange(ctx, url, 0, 0)
 		if rangeErr != nil {
@@ -69,7 +71,9 @@ func (cd *ChunkDownloader) Download(ctx context.Context, url, outputPath string)
 			fmt.Println("范围请求测试失败（网络问题），仍尝试分片下载")
 		} else {
 			reader.Close()
-			fmt.Println("服务器支持分片下载，开始分片下载")
+			if cd.config != nil && cd.config.Verbose {
+				fmt.Println("服务器支持分片下载，开始分片下载")
+			}
 		}
 		
 		// 尝试分片下载
@@ -88,14 +92,16 @@ func (cd *ChunkDownloader) Download(ctx context.Context, url, outputPath string)
 		return nil
 	}
 
-	// 单线程下载，打印原因
-	fmt.Println("使用单线程下载:")
-	if cd.config.ChunkSize <= 0 {
-		fmt.Println("  - 未配置分片大小")
-	} else if fileInfo.ContentLength <= cd.config.ChunkSize {
-		fmt.Printf("  - 文件大小 (%d bytes) 小于分片大小 (%d bytes)\n", fileInfo.ContentLength, cd.config.ChunkSize)
-	} else if !fileInfo.AcceptRanges {
-		fmt.Println("  - 服务器不支持范围请求")
+	// 单线程下载，打印原因（仅在详细模式下显示）
+	if cd.config != nil && cd.config.Verbose {
+		fmt.Println("使用单线程下载:")
+		if cd.config.ChunkSize <= 0 {
+			fmt.Println("  - 未配置分片大小")
+		} else if fileInfo.ContentLength <= cd.config.ChunkSize {
+			fmt.Printf("  - 文件大小 (%d bytes) 小于分片大小 (%d bytes)\n", fileInfo.ContentLength, cd.config.ChunkSize)
+		} else if !fileInfo.AcceptRanges {
+			fmt.Println("  - 服务器不支持范围请求")
+		}
 	}
 	return cd.downloadSingle(ctx, url, finalOutputPath)
 }
@@ -229,7 +235,9 @@ func (cd *ChunkDownloader) downloadWithChunks(ctx context.Context, url, outputPa
 			if actualSize != expectedSize {
 				// 文件大小不匹配，可能需要重新下载
 				// 这里我们选择继续下载，但记录警告
-				fmt.Printf("警告: 临时文件大小与状态不匹配: 文件 %d 字节, 状态 %d 字节\n", actualSize, expectedSize)
+				if cd.config != nil && cd.config.Verbose {
+					fmt.Printf("警告: 临时文件大小与状态不匹配: 文件 %d 字节, 状态 %d 字节\n", actualSize, expectedSize)
+				}
 			}
 		} else {
 			// 没有状态文件，但临时文件存在，可能需要重新下载
@@ -342,7 +350,9 @@ func (cd *ChunkDownloader) downloadChunks(ctx context.Context, url string, file 
 			// 保存状态
 			if err := saveDownloadState(outputPath, chunks); err != nil {
 				// 状态保存失败不影响下载，只记录警告
-				fmt.Printf("警告: 保存分片 %d 状态失败: %v\n", chunk.Index, err)
+				if cd.config != nil && cd.config.Verbose {
+					fmt.Printf("警告: 保存分片 %d 状态失败: %v\n", chunk.Index, err)
+				}
 			}
 			mu.Unlock()
 		}(chunk)
@@ -546,7 +556,9 @@ func (cd *ChunkDownloader) downloadSingle(ctx context.Context, url, outputPath s
 	default:
 		// 未知编码，但继续下载，可能服务器使用了我们不支持的压缩算法
 		// 记录警告但继续
-		fmt.Printf("警告: 未知的Content-Encoding: %s，按原始数据下载\n", contentEncoding)
+		if cd.config != nil && cd.config.Verbose {
+			fmt.Printf("警告: 未知的Content-Encoding: %s，按原始数据下载\n", contentEncoding)
+		}
 	}
 	
 	// 复制数据

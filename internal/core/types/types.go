@@ -29,6 +29,15 @@ type Config struct {
 	MaxRedirects    int
 	FollowRedirects bool
 	Insecure        bool
+	ProxyURL        string
+	
+	// Proxy选项
+	HTTPProxy       string
+	HTTPSProxy      string
+	NoProxy         string
+	ProxyEnabled    bool
+	ProxyUsername   string
+	ProxyPassword   string
 	
 	// 输出选项
 	Quiet           bool

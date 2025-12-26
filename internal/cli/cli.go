@@ -74,6 +74,14 @@ func (cli *CLI) setupFlags() {
 	cmd.Flags().Bool("follow-redirects", true, "跟随重定向")
 	cmd.Flags().Bool("insecure", false, "允许不安全的SSL连接")
 
+	// Proxy选项
+	cmd.Flags().String("http-proxy", "", "设置HTTP代理（格式: http://host:port 或 http://user:pass@host:port）")
+	cmd.Flags().String("https-proxy", "", "设置HTTPS代理（格式: http://host:port 或 http://user:pass@host:port）")
+	cmd.Flags().String("no-proxy", "", "设置不需要代理的主机列表（逗号分隔）")
+	cmd.Flags().Bool("proxy", true, "启用/禁用代理支持")
+	cmd.Flags().String("proxy-user", "", "代理认证用户名")
+	cmd.Flags().String("proxy-password", "", "代理认证密码")
+
 	// 递归下载选项
 	cmd.Flags().BoolP("recursive", "r", false, "递归下载")
 	cmd.Flags().IntP("level", "l", 5, "最大递归深度")
@@ -175,6 +183,12 @@ func (cli *CLI) bindFlags(cmd *cobra.Command) error {
 		"max-redirects":    "max_redirects",
 		"follow-redirects": "follow_redirects",
 		"insecure":         "insecure",
+		"http-proxy":       "http_proxy",
+		"https-proxy":      "https_proxy",
+		"no-proxy":         "no_proxy",
+		"proxy":            "proxy_enabled",
+		"proxy-user":       "proxy_username",
+		"proxy-password":   "proxy_password",
 		"recursive":        "recursive",
 		"level":            "recursive_level",
 		"convert-links":    "convert_links",
@@ -225,6 +239,21 @@ func (cli *CLI) showConfig() {
 	fmt.Printf("递归深度: %d\n", cli.config.RecursiveLevel)
 	fmt.Printf("跟随重定向: %v\n", cli.config.FollowRedirects)
 	fmt.Printf("显示进度: %v\n", cli.config.Progress)
+	
+	// 显示proxy配置
+	if cli.config.HTTPProxy != "" {
+		fmt.Printf("HTTP代理: %s\n", cli.config.HTTPProxy)
+	}
+	if cli.config.HTTPSProxy != "" {
+		fmt.Printf("HTTPS代理: %s\n", cli.config.HTTPSProxy)
+	}
+	if cli.config.NoProxy != "" {
+		fmt.Printf("No-Proxy: %s\n", cli.config.NoProxy)
+	}
+	if cli.config.ProxyUsername != "" {
+		fmt.Printf("代理认证: 是 (用户名: %s)\n", cli.config.ProxyUsername)
+	}
+	
 	fmt.Println("================")
 }
 
@@ -334,14 +363,26 @@ func (cli *CLI) monitorProgress(ctx context.Context, downloader *chunk.ChunkDown
 	for {
 		select {
 		case <-ctx.Done():
+			// 上下文被取消，打印换行符确保进度条不会干扰后续输出
+			if cli.config.Progress && !cli.config.Quiet {
+				fmt.Println()
+			}
 			return
 		case progress, ok := <-progressCh:
 			if !ok {
+				// 进度通道关闭，打印换行符确保进度条不会干扰后续输出
+				if cli.config.Progress && !cli.config.Quiet {
+					fmt.Println()
+				}
 				return
 			}
 			cli.displayProgress(progress)
 		case err, ok := <-errorCh:
 			if !ok {
+				// 错误通道关闭，打印换行符确保进度条不会干扰后续输出
+				if cli.config.Progress && !cli.config.Quiet {
+					fmt.Println()
+				}
 				return
 			}
 			fmt.Printf("\n下载错误: %v\n", err)

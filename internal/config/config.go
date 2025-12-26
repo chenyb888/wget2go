@@ -59,6 +59,13 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("max_redirects", 10)
 	v.SetDefault("follow_redirects", true)
 	v.SetDefault("insecure", false)
+	v.SetDefault("proxy_url", "")
+	v.SetDefault("http_proxy", "")
+	v.SetDefault("https_proxy", "")
+	v.SetDefault("no_proxy", "")
+	v.SetDefault("proxy_enabled", true)
+	v.SetDefault("proxy_username", "")
+	v.SetDefault("proxy_password", "")
 	v.SetDefault("quiet", false)
 	v.SetDefault("verbose", false)
 	v.SetDefault("progress", true)
@@ -96,6 +103,13 @@ func bindEnvVars(v *viper.Viper) {
 	v.BindEnv("timeout", "WGET2GO_TIMEOUT")
 	v.BindEnv("max_threads", "WGET2GO_MAX_THREADS")
 	v.BindEnv("limit_rate", "WGET2GO_LIMIT_RATE")
+	
+	// Proxy 环境变量绑定
+	v.BindEnv("http_proxy", "http_proxy", "HTTP_PROXY")
+	v.BindEnv("https_proxy", "https_proxy", "HTTPS_PROXY")
+	v.BindEnv("no_proxy", "no_proxy", "NO_PROXY")
+	v.BindEnv("proxy_username", "proxy_username", "PROXY_USERNAME")
+	v.BindEnv("proxy_password", "proxy_password", "PROXY_PASSWORD")
 }
 
 // Parse 解析配置
@@ -146,6 +160,13 @@ func (cm *ConfigManager) Parse() (*types.Config, error) {
 		Progress:        cm.viper.GetBool("progress"),
 		Metalink:        cm.viper.GetBool("metalink"),
 		RobotsTxt:       cm.viper.GetBool("robots_txt"),
+		// Proxy 配置
+		HTTPProxy:       cm.viper.GetString("http_proxy"),
+		HTTPSProxy:      cm.viper.GetString("https_proxy"),
+		NoProxy:         cm.viper.GetString("no_proxy"),
+		ProxyEnabled:    cm.viper.GetBool("proxy_enabled"),
+		ProxyUsername:   cm.viper.GetString("proxy_username"),
+		ProxyPassword:   cm.viper.GetString("proxy_password"),
 	}
 
 	return cm.config, nil
