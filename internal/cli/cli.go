@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/example/wget2go/internal/core/types"
 	"github.com/example/wget2go/internal/core/utils"
 	"github.com/example/wget2go/internal/downloader/chunk"
+	"github.com/example/wget2go/internal/downloader/recursive"
 	"github.com/spf13/cobra"
 )
 
@@ -257,8 +260,71 @@ func (cli *CLI) showConfig() {
 	fmt.Println("================")
 }
 
+// startRecursiveDownload 开始递归下载
+func (cli *CLI) startRecursiveDownload() error {
+	if len(cli.urls) != 1 {
+		return fmt.Errorf("递归下载模式仅支持单个URL")
+	}
+
+	startURL := cli.urls[0]
+	outputDir := cli.config.OutputFile
+
+	// 如果没有指定输出目录，使用URL的主机名
+	if outputDir == "" {
+		parsedURL, err := url.Parse(startURL)
+		if err != nil {
+			return fmt.Errorf("解析URL失败: %w", err)
+		}
+		outputDir = parsedURL.Hostname()
+	}
+
+	fmt.Printf("开始递归下载: %s\n", startURL)
+	fmt.Printf("输出目录: %s\n", outputDir)
+	fmt.Printf("递归深度: %d\n", cli.config.RecursiveLevel)
+	fmt.Printf("转换链接: %v\n", cli.config.ConvertLinks)
+	fmt.Printf("下载页面必需资源: %v\n", cli.config.PageRequisites)
+	fmt.Printf("遵守robots.txt: %v\n", cli.config.RobotsTxt)
+	fmt.Println("================")
+
+	// 创建上下文
+	ctx, cancel := context.WithTimeout(context.Background(), cli.config.Timeout)
+	defer cancel()
+
+	// 创建递归下载器
+	downloader := recursive.NewRecursiveDownloader(cli.httpClient, cli.config)
+
+	// 执行下载
+	if err := downloader.Download(ctx, startURL, outputDir); err != nil {
+		return fmt.Errorf("递归下载失败: %w", err)
+	}
+
+	// 输出统计信息
+	stats := downloader.GetStats()
+	fmt.Println("\n=== 下载统计 ===")
+	fmt.Printf("队列剩余: %d\n", stats["queue_size"])
+	fmt.Printf("已访问: %d\n", stats["visited_count"])
+	fmt.Printf("黑名单: %d\n", stats["blacklist_size"])
+	fmt.Printf("已下载文件: %d\n", downloader.GetDownloadedCount())
+
+	// 列出已下载的文件
+	if cli.config.Verbose {
+		fmt.Println("\n=== 已下载文件 ===")
+		for _, file := range downloader.GetDownloadedFiles() {
+			fmt.Println(file)
+		}
+	}
+
+	fmt.Println("\n✅ 递归下载完成!")
+	return nil
+}
+
 // startDownload 开始下载
 func (cli *CLI) startDownload() error {
+	// 检查是否启用递归下载
+	if cli.config.Recursive {
+		return cli.startRecursiveDownload()
+	}
+
 	fmt.Printf("开始下载 %d 个文件...\n", len(cli.urls))
 	
 	// 创建上下文（支持超时）
