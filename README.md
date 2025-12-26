@@ -35,7 +35,73 @@ wget2go https://example.com/file.zip
 
 ### 多线程下载大文件
 ```bash
-wget2go --chunk-size=10M --max-threads=8 https://example.com/large-file.iso
+root@ubuntu:/opt/wget2go# time wget2go  --max-threads 15 https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_files/xs
+rc.tar.gz 
+开始下载 1 个文件...
+
+[1/1] 下载: https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_files/xsrc.tar.gz → xsrc.tar.gz
+文件大小: 181512731 bytes
+服务器范围请求支持: true
+88.2% [████████████████████████████████████████████░░░░░░] 152.7 MB/173.1 MB 38.2 MB/s ETA: 534ms
+
+✓ 下载完成: https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_files/xsrc.tar.gz
+
+✅ 所有下载完成!
+
+real    0m4.755s
+user    0m0.634s
+sys     0m1.031s
+
+
+root@ubuntu:/opt/wget2go# time ./wget2go -v  --max-threads 5 https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_fil
+es/xsrc.tar.gz 
+=== 配置信息 ===
+输出文件: 
+分片大小: 1048576 bytes
+最大线程数: 5
+超时时间: 30s
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36
+递归下载: false
+递归深度: 5
+跟随重定向: true
+显示进度: true
+================
+开始下载 1 个文件...
+
+[1/1] 下载: https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_files/xsrc.tar.gz → xsrc.tar.gz
+文件大小: 181512731 bytes
+服务器范围请求支持: true
+测试服务器分片下载支持...
+服务器支持分片下载，开始分片下载
+分片下载计划:
+  文件总大小: 181512731 字节
+  分片数量: 5
+  分片大小: 36302546 字节
+  最后一个分片大小: 36302547 字节
+  分片 0: 字节范围 0-36302545 (大小: 36302546)
+  分片 1: 字节范围 36302546-72605091 (大小: 36302546)
+  分片 2: 字节范围 72605092-108907637 (大小: 36302546)
+  分片 3: 字节范围 108907638-145210183 (大小: 36302546)
+  分片 4: 字节范围 145210184-181512730 (大小: 36302547)
+分片 4 开始下载: 字节范围 145210184-181512730 (大小: 36302547)
+分片 1 开始下载: 字节范围 36302546-72605091 (大小: 36302546)
+分片 2 开始下载: 字节范围 72605092-108907637 (大小: 36302546)
+分片 3 开始下载: 字节范围 108907638-145210183 (大小: 36302546)
+分片 0 开始下载: 字节范围 0-36302545 (大小: 36302546)
+69.5% [██████████████████████████████████░░░░░░░░░░░░░░░░] 120.3 MB/173.1 MB 40.1 MB/s ETA: 1.3s分片 2 下载完成: 已下载 36302546 字节 (总计: 36302546/181512731)
+90.7% [█████████████████████████████████████████████░░░░░] 157.1 MB/173.1 MB 39.3 MB/s ETA: 407ms分片 3 下载完成: 已下载 36302546 字节 (总计: 72605092/181512731)
+分片 0 下载完成: 已下载 36302546 字节 (总计: 108907638/181512731)
+分片 4 下载完成: 已下载 36302547 字节 (总计: 145210185/181512731)
+分片 1 下载完成: 已下载 36302546 字节 (总计: 181512731/181512731)
+文件验证通过: 181512731 字节
+
+✓ 下载完成: https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_files/xsrc.tar.gz
+
+✅ 所有下载完成!
+
+real    0m4.748s
+user    0m0.588s
+sys     0m1.128s
 ```
 
 ### 递归下载网站
@@ -58,7 +124,7 @@ wget2go --metalink https://example.com/file.meta4
 - `-v, --verbose`：详细输出模式
 
 ### 下载选项
-- `--chunk-size=SIZE`：分片大小（如1M、10M）
+- `--chunk-size=SIZE`：分片大小（如1M、10M） # 暂时没实现
 - `--max-threads=N`：最大并发线程数（默认5）
 - `--limit-rate=RATE`：限制下载速度（如100K、1M）
 - `--timeout=SECONDS`：超时时间（默认30秒）
