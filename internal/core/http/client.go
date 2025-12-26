@@ -65,7 +65,6 @@ func NewClient(config *types.Config) *Client {
 
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   config.Timeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if !config.FollowRedirects || len(via) >= config.MaxRedirects {
 				return http.ErrUseLastResponse
