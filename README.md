@@ -1,189 +1,192 @@
-# wget2go - Go语言实现的wget2
+# wget2go - Modern Multi-threaded Download Tool in Go
 
-wget2go是一个用Go语言重写的wget2，提供了现代化的多线程下载工具，支持HTTP/1.1、HTTP/2、HTTPS等协议。
+wget2go is a wget2 rewrite in Go, providing a modern multi-threaded download tool with support for HTTP/1.1, HTTP/2, HTTPS, and more.
 
-## 特性
+## Features
 
-- 🚀 **高性能多线程下载**：利用Go的goroutine实现真正的并发下载
-- 🔒 **完整的安全支持**：TLS 1.2/1.3、HSTS、证书验证
-- 📦 **多种协议支持**：HTTP/1.1、HTTP/2、HTTPS
-- 🎯 **智能分片下载**：大文件自动分片，多线程并行下载
-- 📄 **格式支持**：Metalink、Cookie、压缩格式（gzip、brotli等）
-- 🖥️ **跨平台**：Windows、Linux、macOS全平台支持
-- 📊 **进度显示**：实时下载进度和速度显示
+- 🚀 **High-performance multi-threaded downloads**: True concurrent downloads using Go's goroutines
+- 🔒 **Complete security support**: TLS 1.2/1.3, HSTS, certificate verification
+- 📦 **Multiple protocol support**: HTTP/1.1, HTTP/2, HTTPS
+- 🎯 **Intelligent chunked downloads**: Automatic file chunking for large files with parallel multi-threaded downloads
+- 📄 **Format support**: Metalink, Cookie, compression formats (gzip, brotli, etc.)
+- 🖥️ **Cross-platform**: Full support for Windows, Linux, macOS
+- 📊 **Progress display**: Real-time download progress and speed display
 
-## 安装
+## Installation
 
-### 从源码编译
+### Build from source
 ```bash
 git clone https://github.com/chenyb888/wget2go.git
 cd wget2go
 go build -o wget2go ./cmd/wget2go
 ```
 
-### 使用go install
+### Using go install
 ```bash
 go install github.com/chenyb888/wget2go/cmd/wget2go@latest
 ```
 
-## 使用示例
+### Download pre-built binaries
 
-### 基本下载
+Pre-built binaries are available for the following platforms:
+
+| Platform | Architecture | Binary |
+|----------|-------------|--------|
+| macOS | AMD64 | wget2go-darwin-amd64 |
+| macOS | ARM64 | wget2go-darwin-arm64 |
+| Linux | 386 | wget2go-linux-386 |
+| Linux | AMD64 | wget2go-linux-amd64 |
+| Linux | ARM | wget2go-linux-arm |
+| Linux | ARM64 | wget2go-linux-arm64 |
+| Windows | 386 | wget2go-windows-386.exe |
+| Windows | AMD64 | wget2go-windows-amd64.exe |
+| Windows | ARM64 | wget2go-windows-arm64.exe |
+
+## Usage Examples
+
+### Basic download
 ```bash
 wget2go https://example.com/file.zip
 ```
 
-### 多线程下载大文件
+### Multi-threaded download for large files
 ```bash
-root@ubuntu:/opt/wget2go# time wget2go  --max-threads 15 https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_files/xs
-rc.tar.gz 
-开始下载 1 个文件...
-
-[1/1] 下载: https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_files/xsrc.tar.gz → xsrc.tar.gz
-文件大小: 181512731 bytes
-服务器范围请求支持: true
-88.2% [████████████████████████████████████████████░░░░░░] 152.7 MB/173.1 MB 38.2 MB/s ETA: 534ms
-
-✓ 下载完成: https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_files/xsrc.tar.gz
-
-✅ 所有下载完成!
-
-real    0m4.755s
-user    0m0.634s
-sys     0m1.031s
-
-
-root@ubuntu:/opt/wget2go# time ./wget2go -v  --max-threads 5 https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_fil
-es/xsrc.tar.gz 
-=== 配置信息 ===
-输出文件: 
-分片大小: 1048576 bytes
-最大线程数: 5
-超时时间: 30s
-User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36
-递归下载: false
-递归深度: 5
-跟随重定向: true
-显示进度: true
-================
-开始下载 1 个文件...
-
-[1/1] 下载: https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_files/xsrc.tar.gz → xsrc.tar.gz
-文件大小: 181512731 bytes
-服务器范围请求支持: true
-测试服务器分片下载支持...
-服务器支持分片下载，开始分片下载
-分片下载计划:
-  文件总大小: 181512731 字节
-  分片数量: 5
-  分片大小: 36302546 字节
-  最后一个分片大小: 36302547 字节
-  分片 0: 字节范围 0-36302545 (大小: 36302546)
-  分片 1: 字节范围 36302546-72605091 (大小: 36302546)
-  分片 2: 字节范围 72605092-108907637 (大小: 36302546)
-  分片 3: 字节范围 108907638-145210183 (大小: 36302546)
-  分片 4: 字节范围 145210184-181512730 (大小: 36302547)
-分片 4 开始下载: 字节范围 145210184-181512730 (大小: 36302547)
-分片 1 开始下载: 字节范围 36302546-72605091 (大小: 36302546)
-分片 2 开始下载: 字节范围 72605092-108907637 (大小: 36302546)
-分片 3 开始下载: 字节范围 108907638-145210183 (大小: 36302546)
-分片 0 开始下载: 字节范围 0-36302545 (大小: 36302546)
-69.5% [██████████████████████████████████░░░░░░░░░░░░░░░░] 120.3 MB/173.1 MB 40.1 MB/s ETA: 1.3s分片 2 下载完成: 已下载 36302546 字节 (总计: 36302546/181512731)
-90.7% [█████████████████████████████████████████████░░░░░] 157.1 MB/173.1 MB 39.3 MB/s ETA: 407ms分片 3 下载完成: 已下载 36302546 字节 (总计: 72605092/181512731)
-分片 0 下载完成: 已下载 36302546 字节 (总计: 108907638/181512731)
-分片 4 下载完成: 已下载 36302547 字节 (总计: 145210185/181512731)
-分片 1 下载完成: 已下载 36302546 字节 (总计: 181512731/181512731)
-文件验证通过: 181512731 字节
-
-✓ 下载完成: https://mirrors.tuna.tsinghua.edu.cn/NetBSD/NetBSD-release-10/tar_files/xsrc.tar.gz
-
-✅ 所有下载完成!
-
-real    0m4.748s
-user    0m0.588s
-sys     0m1.128s
+wget2go --max-threads 15 https://example.com/largefile.tar.gz
 ```
 
-### 递归下载网站
+### Resume interrupted download
+```bash
+wget2go -c https://example.com/file.zip
+```
+
+### Recursive website download
 ```bash
 wget2go --recursive --convert-links https://example.com/
 ```
 
-### 使用Metalink
+### Using Metalink
 ```bash
 wget2go --metalink https://example.com/file.meta4
 ```
 
-## 命令行选项
+### Set custom User-Agent
+```bash
+wget2go --user-agent "MyCustomAgent/1.0" https://example.com/file.zip
+```
 
-### 基本选项
-- `-o, --output FILE`：指定输出文件名
-- `-O, --output-document FILE`：将所有内容写入单个文件
-- `-c, --continue`：断点续传
-- `-q, --quiet`：安静模式，不输出信息
-- `-v, --verbose`：详细输出模式
+### Download with custom headers
+```bash
+wget2go --header "Authorization: Bearer token" https://example.com/file.zip
+```
 
-### 下载选项
-- `--chunk-size=SIZE`：分片大小（如1M、10M） # 暂时没实现
-- `--max-threads=N`：最大并发线程数（默认5）
-- `--limit-rate=RATE`：限制下载速度（如100K、1M）
-- `--timeout=SECONDS`：超时时间（默认30秒）
+### Download through proxy
+```bash
+wget2go --http-proxy http://127.0.0.1:8080 https://example.com/file.zip
+```
 
-### HTTP选项
-- `--user-agent=STRING`：设置User-Agent
-- `--header=HEADER`：添加HTTP头
-- `--cookie=COOKIE`：设置Cookie
-- `--referer=URL`：设置Referer
+## Command-Line Options
 
-### 递归下载选项
-- `-r, --recursive`：递归下载
-- `-l, --level=N`：最大递归深度
-- `-k, --convert-links`：转换链接用于本地浏览
-- `-p, --page-requisites`：下载页面所需的所有文件
+### Version & Help
+- `-V, --version` : Display version information
+- `-h, --help` : Display help information
 
-## 项目结构
+### Basic Options
+- `-o, --output FILE` : Write documents to FILE
+- `-O, --output-document FILE` : Write all content to FILE
+- `-c, --continue` : Resume interrupted download
+- `-q, --quiet` : Quiet mode (no output)
+- `-v, --verbose` : Verbose output mode
+
+### Download Options
+- `--chunk-size=SIZE` : Chunk size (e.g., 1M, 10M)
+- `--max-threads=N` : Maximum number of concurrent threads (default: 5)
+- `--limit-rate=RATE` : Limit download speed (e.g., 100K, 1M)
+- `--timeout=DURATION` : Timeout duration (default: 30s)
+
+### HTTP Options
+- `--user-agent=STRING` : Set User-Agent
+- `--referer=URL` : Set Referer
+- `-H, --header=HEADER` : Add HTTP header (can be used multiple times)
+- `--cookie=COOKIE` : Set Cookie
+- `--max-redirects=N` : Maximum number of redirects (default: 10)
+- `--follow-redirects` : Follow redirects (default: true)
+- `--insecure` : Allow insecure SSL connections
+
+### Proxy Options
+- `--http-proxy=URL` : Set HTTP proxy (format: http://host:port or http://user:pass@host:port)
+- `--https-proxy=URL` : Set HTTPS proxy
+- `--no-proxy=LIST` : List of hosts that don't need proxy (comma-separated)
+- `--proxy` : Enable/disable proxy support (default: true)
+- `--proxy-user=USERNAME` : Proxy authentication username
+- `--proxy-password=PASSWORD` : Proxy authentication password
+
+### Recursive Download Options
+- `-r, --recursive` : Recursive download
+- `-l, --level=N` : Maximum recursion depth (default: 5)
+- `-k, --convert-links` : Convert links for local browsing
+- `-p, --page-requisites` : Download all files required by the page
+
+### Other Options
+- `--progress` : Show progress bar (default: true)
+- `--metalink` : Use Metalink
+- `--robots-txt` : Respect robots.txt (default: true)
+
+## Project Structure
 
 ```
 wget2go/
-├── cmd/wget2go/          # 主程序入口
-├── internal/             # 内部包（不对外暴露）
-│   ├── core/             # 核心库
-│   ├── downloader/       # 下载管理器
-│   ├── config/           # 配置管理
-│   └── cli/              # 命令行界面
-├── pkg/                  # 可复用包
-│   ├── metalink/         # Metalink支持
-│   └── progress/         # 进度显示
-├── test/                 # 测试文件
-└── docs/                 # 文档
+├── cmd/wget2go/          # Main program entry
+├── internal/             # Internal packages (not exposed)
+│   ├── core/             # Core library
+│   ├── downloader/       # Download manager
+│   ├── config/           # Configuration management
+│   └── cli/              # Command-line interface
+├── pkg/                  # Reusable packages
+│   ├── metalink/         # Metalink support
+│   └── progress/         # Progress display
+├── test/                 # Test files
+└── docs/                 # Documentation
 ```
 
-## 开发
+## Development
 
-### 运行测试
+### Run tests
 ```bash
 go test ./...
 ```
 
-### 代码格式化
+### Format code
 ```bash
 go fmt ./...
 ```
 
-### 构建所有平台
+### Build for all platforms
 ```bash
-./scripts/build-all.sh
+# Linux AMD64
+GOOS=linux GOARCH=amd64 go build -o bin/wget2go-linux-amd64 ./cmd/wget2go
+
+# Linux ARM64
+GOOS=linux GOARCH=arm64 go build -o bin/wget2go-linux-arm64 ./cmd/wget2go
+
+# macOS AMD64
+GOOS=darwin GOARCH=amd64 go build -o bin/wget2go-darwin-amd64 ./cmd/wget2go
+
+# macOS ARM64
+GOOS=darwin GOARCH=arm64 go build -o bin/wget2go-darwin-arm64 ./cmd/wget2go
+
+# Windows AMD64
+GOOS=windows GOARCH=amd64 go build -o bin/wget2go-windows-amd64.exe ./cmd/wget2go
 ```
 
-## 许可证
+## License
 
-本项目采用MIT许可证。详见[LICENSE](LICENSE)文件。
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## 贡献
+## Contributing
 
-欢迎提交Issue和Pull Request！
+Issues and Pull Requests are welcome!
 
-## 致谢
+## Acknowledgments
 
-- 感谢GNU wget2项目的启发
-- 感谢所有Go语言开源项目的贡献者
+- Thanks to the GNU wget2 project for inspiration
+- Thanks to all contributors to Go open-source projects
