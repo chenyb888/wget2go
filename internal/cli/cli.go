@@ -66,6 +66,7 @@ func (cli *CLI) setupFlags() {
 	cmd.Flags().Int("max-threads", 5, "最大并发线程数")
 	cmd.Flags().String("limit-rate", "0", "限制下载速度（如100K、1M）")
 	cmd.Flags().String("timeout", "30s", "超时时间")
+	cmd.Flags().Int("retry-count", 3, "分片下载失败时的重试次数")
 
 	// HTTP选项
 	cmd.Flags().String("user-agent", "", "设置User-Agent")
@@ -178,6 +179,7 @@ func (cli *CLI) bindFlags(cmd *cobra.Command) error {
 		"max-threads":      "max_threads",
 		"limit-rate":       "limit_rate",
 		"timeout":          "timeout",
+		"retry-count":      "retry_count",
 		"user-agent":       "user_agent",
 		"referer":          "referer",
 		"header":           "header",

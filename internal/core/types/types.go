@@ -15,6 +15,7 @@ type Config struct {
 	MaxThreads      int
 	LimitRate       int64
 	Timeout         time.Duration
+	RetryCount      int
 	UserAgent       string
 	Referer         string
 	Headers         map[string]string

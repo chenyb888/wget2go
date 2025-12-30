@@ -50,6 +50,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("max_threads", 5)
 	v.SetDefault("limit_rate", "0")
 	v.SetDefault("timeout", "30s")
+	v.SetDefault("retry_count", 3)
 	v.SetDefault("user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36")
 	v.SetDefault("referer", "")
 	v.SetDefault("recursive", false)
@@ -144,6 +145,7 @@ func (cm *ConfigManager) Parse() (*types.Config, error) {
 		MaxThreads:      cm.viper.GetInt("max_threads"),
 		LimitRate:       limitRate,
 		Timeout:         timeout,
+		RetryCount:      cm.viper.GetInt("retry_count"),
 		UserAgent:       cm.viper.GetString("user_agent"),
 		Referer:         cm.viper.GetString("referer"),
 		Headers:         parseHeaders(cm.viper.GetStringSlice("header")),

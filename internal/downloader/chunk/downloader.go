@@ -297,7 +297,7 @@ func (cd *ChunkDownloader) downloadWithChunks(ctx context.Context, url, outputPa
 func (cd *ChunkDownloader) downloadChunks(ctx context.Context, url string, file *os.File, chunks []*types.Chunk, outputPath string) error {
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, cd.config.MaxThreads)
-	
+
 	var mu sync.Mutex
 	totalDownloaded := int64(0)
 	startTime := time.Now()
@@ -308,43 +308,80 @@ func (cd *ChunkDownloader) downloadChunks(ctx context.Context, url string, file 
 	// 下载每个分片
 	for _, chunk := range chunks {
 		wg.Add(1)
-		
+
 		go func(chunk *types.Chunk) {
 			defer wg.Done()
-			
+
 			// 获取信号量
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
-			
+
 			// 记录分片开始下载（仅在详细模式下显示）
 			if cd.config != nil && cd.config.Verbose {
 				mu.Lock()
-				fmt.Printf("分片 %d 开始下载: 字节范围 %d-%d (大小: %d)\n", 
+				fmt.Printf("分片 %d 开始下载: 字节范围 %d-%d (大小: %d)\n",
 					chunk.Index, chunk.Start, chunk.End, chunk.Size)
 				mu.Unlock()
 			}
-			
-			// 下载分片
-			if err := cd.downloadChunk(ctx, url, file, chunk); err != nil {
-				cd.errorCh <- fmt.Errorf("分片 %d 下载失败: %w", chunk.Index, err)
+
+			// 带重试的下载
+			retryCount := cd.config.RetryCount
+			if retryCount < 0 {
+				retryCount = 0
+			}
+
+			var lastErr error
+			for retry := 0; retry <= retryCount; retry++ {
+				if retry > 0 {
+					// 重试时等待一段时间
+					time.Sleep(time.Duration(retry) * time.Second)
+					if cd.config != nil && cd.config.Verbose {
+						mu.Lock()
+						fmt.Printf("分片 %d 重试 %d/%d...\n", chunk.Index, retry, retryCount)
+						mu.Unlock()
+					}
+				}
+
+				// 下载分片
+				if err := cd.downloadChunk(ctx, url, file, chunk); err != nil {
+					lastErr = err
+					if cd.config != nil && cd.config.Verbose {
+						mu.Lock()
+						fmt.Printf("分片 %d 下载失败 (尝试 %d/%d): %v\n", chunk.Index, retry+1, retryCount+1, err)
+						mu.Unlock()
+					}
+					// 重置分片状态，准备重试
+					chunk.Completed = 0
+					chunk.Status = types.TaskPending
+					continue
+				}
+
+				// 下载成功，退出重试循环
+				lastErr = nil
+				break
+			}
+
+			// 如果所有重试都失败
+			if lastErr != nil {
+				cd.errorCh <- fmt.Errorf("分片 %d 下载失败 (重试 %d 次后): %w", chunk.Index, retryCount, lastErr)
 				chunk.Status = types.TaskFailed
-				chunk.Error = err
-				
+				chunk.Error = lastErr
+
 				if cd.config != nil && cd.config.Verbose {
 					mu.Lock()
-					fmt.Printf("分片 %d 下载失败: %v\n", chunk.Index, err)
+					fmt.Printf("分片 %d 最终失败: %v\n", chunk.Index, lastErr)
 					mu.Unlock()
 				}
 				return
 			}
-			
+
 			// 更新统计并保存状态
 			mu.Lock()
 			// 使用实际完成的字节数（chunk.Completed）而不是预期大小（chunk.Size）
 			totalDownloaded += chunk.Completed
 			chunk.Status = types.TaskCompleted
 			if cd.config != nil && cd.config.Verbose {
-				fmt.Printf("分片 %d 下载完成: 已下载 %d 字节 (总计: %d/%d)\n", 
+				fmt.Printf("分片 %d 下载完成: 已下载 %d 字节 (总计: %d/%d)\n",
 					chunk.Index, chunk.Completed, totalDownloaded, calculateTotalSize(chunks))
 			}
 			// 保存状态
@@ -360,7 +397,7 @@ func (cd *ChunkDownloader) downloadChunks(ctx context.Context, url string, file 
 
 	// 等待所有分片完成
 	wg.Wait()
-	
+
 	// 检查是否有错误
 	var firstError error
 	// 读取所有错误
