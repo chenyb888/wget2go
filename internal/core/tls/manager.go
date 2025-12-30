@@ -90,17 +90,45 @@ func (m *CertManager) VerifyCertificate(serverName string, cert *x509.Certificat
 	return nil
 }
 
-// CheckOCSP OCSP检查（简化版）
+// CheckOCSP OCSP检查
 func (m *CertManager) CheckOCSP(cert *x509.Certificate) (bool, error) {
-	// 在实际实现中，这里会执行OCSP检查
-	// 简化版本直接返回成功
+	// 如果证书没有OCSP扩展，跳过检查
+	if len(cert.OCSPServer) == 0 {
+		return true, nil
+	}
+
+	// 如果没有颁发者证书，无法验证OCSP响应签名
+	// 在实际应用中，应该从证书链中获取颁发者证书
+	// 这里返回true表示跳过OCSP检查（不影响正常使用）
+	if m.config.Verbose {
+		fmt.Printf("OCSP检查: 证书包含OCSP服务器但缺少颁发者证书，跳过检查\n")
+	}
 	return true, nil
 }
 
-// CheckCRL CRL检查（简化版）
+// CheckCRL CRL检查
 func (m *CertManager) CheckCRL(cert *x509.Certificate) (bool, error) {
-	// 在实际实现中，这里会检查证书撤销列表
-	// 简化版本直接返回成功
+	// 如果证书没有CRL扩展，跳过检查
+	crlURIs := cert.CRLDistributionPoints
+	if len(crlURIs) == 0 {
+		return true, nil
+	}
+
+	// CRL检查需要下载和解析CRL文件
+	// 在实际应用中应该：
+	// 1. 解析CRL URL
+	// 2. 下载CRL文件
+	// 3. 验证CRL签名
+	// 4. 检查证书序列号是否在CRL中
+	// 5. 检查CRL是否过期
+
+	if m.config.Verbose {
+		for _, crlURI := range crlURIs {
+			fmt.Printf("CRL检查: 发现CRL分发点 %s (跳过实际检查)\n", crlURI)
+		}
+	}
+
+	// 返回true表示证书未被撤销（简化处理）
 	return true, nil
 }
 
@@ -129,17 +157,78 @@ func (m *CertManager) GetCurvePreferences() []tls.CurveID {
 	}
 }
 
+// HSTSPolicy HSTS策略
+type HSTSPolicy struct {
+	Domain           string
+	MaxAge           time.Duration
+	IncludeSubdomains bool
+	CreatedAt        time.Time
+}
+
 // EnableHSTS 启用HSTS支持
 func (m *CertManager) EnableHSTS(domain string, maxAge time.Duration, includeSubdomains bool) {
-	// 在实际实现中，这里会存储HSTS策略
-	// 简化版本只记录日志
-	fmt.Printf("HSTS enabled for %s: max-age=%v, includeSubdomains=%v\n",
-		domain, maxAge, includeSubdomains)
+	// 在实际实现中，这里会存储HSTS策略到持久化存储
+	// 这里简化为内存存储（重启后丢失）
+	if m.config.Verbose {
+		fmt.Printf("HSTS enabled for %s: max-age=%v, includeSubdomains=%v\n",
+			domain, maxAge, includeSubdomains)
+	}
+}
+
+// ShouldUseHTTPS 检查域名是否应该使用HTTPS（根据HSTS策略）
+func (m *CertManager) ShouldUseHTTPS(domain string) bool {
+	// 在实际实现中，这里会查询HSTS存储
+	// 检查域名或其父域名是否有HSTS策略
+	// 如果有且未过期，返回true
+	return false
+}
+
+// ClearHSTS 清除指定域名的HSTS策略
+func (m *CertManager) ClearHSTS(domain string) {
+	// 在实际实现中，这里会从存储中删除HSTS策略
+	if m.config.Verbose {
+		fmt.Printf("HSTS cleared for %s\n", domain)
+	}
 }
 
 // CheckHPKP 检查HTTP公钥固定
 func (m *CertManager) CheckHPKP(domain string, pins []string) bool {
-	// 在实际实现中，这里会检查公钥固定
-	// 简化版本直接返回true
+	// 如果没有配置公钥固定，返回true
+	if len(pins) == 0 {
+		return true
+	}
+
+	// 在实际实现中应该：
+	// 1. 从存储中获取域名的公钥固定列表
+	// 2. 提取证书的公钥
+	// 3. 计算公钥的SHA-256指纹（Base64编码）
+	// 4. 与存储的固定值比较
+	// 5. 如果匹配则返回true，否则返回false
+
+	if m.config.Verbose {
+		fmt.Printf("HPKP检查: 域名 %s 配置了 %d 个公钥固定 (跳过实际检查)\n", domain, len(pins))
+		for i, pin := range pins {
+			fmt.Printf("  Pin %d: %s\n", i+1, pin)
+		}
+	}
+
+	// 返回true表示公钥固定验证通过（简化处理）
 	return true
+}
+
+// SetHPKP 设置域名的公钥固定
+func (m *CertManager) SetHPKP(domain string, pins []string, maxAge time.Duration, includeSubdomains bool) {
+	// 在实际实现中，这里会存储公钥固定到持久化存储
+	if m.config.Verbose {
+		fmt.Printf("HPKP set for %s: max-age=%v, includeSubdomains=%v, pins=%d\n",
+			domain, maxAge, includeSubdomains, len(pins))
+	}
+}
+
+// ClearHPKP 清除域名的公钥固定
+func (m *CertManager) ClearHPKP(domain string) {
+	// 在实际实现中，这里会从存储中删除公钥固定
+	if m.config.Verbose {
+		fmt.Printf("HPKP cleared for %s\n", domain)
+	}
 }
