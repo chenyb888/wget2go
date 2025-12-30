@@ -69,6 +69,10 @@ func NewClient(config *types.Config) *Client {
 			if !config.FollowRedirects || len(via) >= config.MaxRedirects {
 				return http.ErrUseLastResponse
 			}
+			// 打印重定向信息（仅在详细模式下）
+			if config.Verbose && len(via) > 0 {
+				fmt.Printf("重定向 [%d]: %s -> %s\n", len(via), via[len(via)-1].URL.String(), req.URL.String())
+			}
 			return nil
 		},
 	}
